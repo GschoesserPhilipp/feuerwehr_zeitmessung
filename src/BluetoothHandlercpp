@@ -1,0 +1,54 @@
+#include "BleHandler.h"
+
+BleHandler::BleHandler(QObject *parent) : QObject(parent) {
+    discoveryAgent = new QBluetoothDeviceDiscoveryAgent(this);
+    connect(discoveryAgent, &QBluetoothDeviceDiscoveryAgent::deviceDiscovered,
+            this, &BleHandler::deviceDiscovered);
+    connect(discoveryAgent, &QBluetoothDeviceDiscoveryAgent::finished,
+            this, &BleHandler::scanFinished);
+}
+
+void BleHandler::startScan() {
+    discoveryAgent->start();
+}
+
+void BleHandler::deviceDiscovered(const QBluetoothDeviceInfo &info) {
+    if (info.name().contains("ESP32_Timer")) {
+        discoveryAgent->stop();
+        controller = QLowEnergyController::createCentral(info, this);
+        connect(controller, &QLowEnergyController::connected, this, &BleHandler::connected);
+        controller->connectToDevice();
+    }
+}
+
+void BleHandler::connected() {
+    connect(controller, &QLowEnergyController::serviceDiscovered, this, &BleHandler::serviceDiscovered);
+    connect(controller, &QLowEnergyController::discoveryFinished, this, &BleHandler::serviceScanDone);
+    controller->discoverServices();
+}
+
+void BleHandler::serviceDiscovered(const QBluetoothUuid &uuid) {
+    if (uuid.toString().contains("1234")) { // grobe UUID-Prüfung
+        service = controller->createServiceObject(uuid, this);
+        connect(service, &QLowEnergyService::stateChanged, this, &BleHandler::serviceStateChanged);
+        connect(service, &QLowEnergyService::characteristicChanged,
+                this, &BleHandler::characteristicChanged);
+        service->discoverDetails();
+    }
+}
+
+void BleHandler::serviceStateChanged(QLowEnergyService::ServiceState s) {
+    if (s == QLowEnergyService::ServiceDiscovered) {
+        for (const QLowEnergyCharacteristic &c : service->characteristics()) {
+            if (c.uuid().toString().contains("abcd")) {
+                timeChar = c;
+                service->writeDescriptor(c.descriptor(QBluetoothUuid::ClientCharacteristicConfiguration),
+                                         QByteArray::fromHex("0100")); // Enable notify
+            }
+        }
+    }
+}
+
+void BleHandler::characteristicChanged(const QLowEnergyCharacteristic &c, const QByteArray &value) {
+    emit timeReceived(QString::fromUtf8(value));
+}
