@@ -48,7 +48,10 @@ Rectangle {
                 anchors.rightMargin: 10
                 anchors.leftMargin: 10
                 implicitHeight: 50
-                onClicked: bleHandler.disconnectFromDevice()
+                onClicked: {
+                    bleHandler.disconnectFromDevice()
+                    connectedText.text = "Verbindung getrennt";
+                }
             }
         }
     }
@@ -149,7 +152,7 @@ Rectangle {
                         console.log("Verbinde mit:", modelData.address)
                         bleHandler.connectToDevice(modelData.address)
                         busyIndicator.running = false;
-                        connectedText.text = "Connected to: " + modelData.name
+                        connectedText.text = "Verbunden mit: " + modelData.name
                     }
                 }
             }
@@ -176,7 +179,7 @@ Rectangle {
         y: 12
         width: 100
         height: 100
-        source: "images/fire.png"
+        source: "qrc:/feuerwehr_zeitmessung/images/fire.png"
         fillMode: Image.PreserveAspectFit
         anchors.centerIn: parent
         anchors.fill: parent

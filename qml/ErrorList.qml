@@ -112,7 +112,7 @@ Item {
     Image {
         id: image
         anchors.fill: parent
-        source: "images/fire.png"
+        source: "qrc:/feuerwehr_zeitmessung/images/fire.png"
         fillMode: Image.PreserveAspectFit
         opacity: imageOpacity
     }

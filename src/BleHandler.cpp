@@ -81,24 +81,18 @@ void BleHandler::connectToDevice(const QString &address) {
     connect(controller, &QLowEnergyController::serviceDiscovered, this, &BleHandler::serviceDiscovered);
     connect(controller, &QLowEnergyController::discoveryFinished, this, &BleHandler::serviceScanDone);
 
-    connect(service, &QLowEnergyService::characteristicRead, this, &BleHandler::characteristicRead);
-
-
     qDebug() << "Versuche Verbindung zu Gerät: " << address;
     controller->connectToDevice();
     stopScan();
 
-
 }
 
-// Diese Methode trennt die Verbindung zum Gerät
 void BleHandler::disconnectFromDevice() {
     if (controller) {
         controller->disconnectFromDevice();
         qDebug() << "Disconnected from device.";
     }
 }
-
 
 
 void BleHandler::serviceDiscovered(const QBluetoothUuid &serviceUuid) {
@@ -108,7 +102,6 @@ void BleHandler::serviceDiscovered(const QBluetoothUuid &serviceUuid) {
 void BleHandler::serviceScanDone() {
     qDebug() << "Service-Scan abgeschlossen";
 
-    // Beispiel: Ersten Service auswählen
     QList<QBluetoothUuid> services = controller->services();
     if (services.isEmpty()) {
         qDebug() << "Keine Services gefunden.";
@@ -135,21 +128,25 @@ void BleHandler::serviceStateChanged(QLowEnergyService::ServiceState s) {
     for (const auto &c : chars) {
         qDebug() << "Gefundene Charakteristik UUID:" << c.uuid().toString() << "Name:" << c.name();
 
-        // Überprüfe, ob die UUID der Charakteristik mit der gewünschten übereinstimmt
-        if (c.uuid().toString() == "{19b10001-e8f2-537e-4f6c-d104768a1214}") {
+        if (c.uuid().toString() == "{19b10001-e8f2-537e-4f6c-d104768a1211}") {
             timeChar = c;
         }
 
-        // Neue Bedingung für die "write" fähige Charakteristik (Bool senden)
-        if (c.uuid().toString() == "{19b10012-e8f2-537e-4f6c-d104768a1214}") {
-            controlChar = c;  // Zuweisung der Charakteristik für das Senden von Daten
+        if (c.uuid().toString() == "{19b10001-e8f2-537e-4f6c-d104768a1212}") {
+            controlChar = c;
         }
 
-        if (c.uuid().toString() == "{19b10011-e8f2-537e-4f6c-d104768a1214}") {
-            groupChar = c;  // <-- GRUPPEN-CHARAKTERISTIK speichern
+        if (c.uuid().toString() == "{19b10001-e8f2-537e-4f6c-d104768a1213}") {
+            groupChar = c;
         }
 
+        if (c.uuid().toString() == "{19b10001-e8f2-537e-4f6c-d104768a1214}") {
+            sendGroupsChar = c;
+        }
 
+        if (c.uuid().toString() == "{19b10001-e8f2-537e-4f6c-d104768a1215}") {
+            requestGroupsChar = c;
+        }
     }
 
     if (!timeChar.isValid()) {
@@ -166,10 +163,24 @@ void BleHandler::serviceStateChanged(QLowEnergyService::ServiceState s) {
         qDebug() << "Gruppen Charakteristik nicht gefunden!";
     }
 
-    // CCCD manuell angeben
+    if (!sendGroupsChar.isValid()) {
+        qDebug() << "sendGroup Charakteristik nicht gefunden!";
+    }
+
+    if (!requestGroupsChar.isValid()) {
+        qDebug() << "requestGroup Charakteristik nicht gefunden!";
+    }
+
+    // Notification aktivieren für timeChar
     QLowEnergyDescriptor notifyDesc = timeChar.descriptor(QUuid("00002902-0000-1000-8000-00805f9b34fb"));
     if (notifyDesc.isValid()) {
         service->writeDescriptor(notifyDesc, QByteArray::fromHex("0100")); // Benachrichtigungen aktivieren
+    }
+
+    // Notification aktivieren für sendGroupsChar
+    QLowEnergyDescriptor sendGroupsNotifyDesc = sendGroupsChar.descriptor(QUuid("00002902-0000-1000-8000-00805f9b34fb"));
+    if (sendGroupsNotifyDesc.isValid()) {
+        service->writeDescriptor(sendGroupsNotifyDesc, QByteArray::fromHex("0100"));
     }
 
     connect(service, &QLowEnergyService::characteristicChanged, this, &BleHandler::characteristicUpdated);
@@ -177,34 +188,26 @@ void BleHandler::serviceStateChanged(QLowEnergyService::ServiceState s) {
 
 
 void BleHandler::characteristicUpdated(const QLowEnergyCharacteristic &c, const QByteArray &value) {
-    qDebug() << "Charakteristik aktualisiert:" << c.uuid().toString() << "Wert:" << value.toHex();
-
-        if (value.size() >= 4) {  // Wenn die Größe der empfangenen Daten mindestens 4 Bytes beträgt
-            // Little Endian Interpretation der ersten vier Bytes
-            uint32_t number = (static_cast<uint8_t>(value[3]) << 24) |
-                              (static_cast<uint8_t>(value[2]) << 16) |
-                              (static_cast<uint8_t>(value[1]) << 8) |
-                              static_cast<uint8_t>(value[0]);
-
-            // Zahl als QString senden
-            emit valueReceived(QString::number(number));
-        }
-}
-
-void BleHandler::characteristicRead(const QLowEnergyCharacteristic &c, const QByteArray &value) {
-    if (c.uuid().toString() != "{19b10001-e8f2-537e-4f6c-d104768a1214}")
+    if (c.uuid() == sendGroupsChar.uuid()) {
+        QString groupsJson = QString::fromUtf8(value);
+        qDebug() << "Gruppen JSON empfangen:" << groupsJson;
+        emit groupsReceived(groupsJson);
         return;
 
-    QString data = QString::fromUtf8(value);
-    QStringList gruppen = data.split(";", Qt::SkipEmptyParts);
-
-    if (gruppen != m_groupList) {
-        m_groupList = gruppen;
-        emit groupListChanged();
     }
 
-    qDebug() << "Gruppen empfangen:" << gruppen;
+    if (value.size() >= 4) {  // Wenn die Größe der empfangenen Daten mindestens 4 Bytes beträgt
+        // Little Endian Interpretation der ersten vier Bytes
+        uint32_t number = (static_cast<uint8_t>(value[3]) << 24) |
+                          (static_cast<uint8_t>(value[2]) << 16) |
+                          (static_cast<uint8_t>(value[1]) << 8) |
+                          static_cast<uint8_t>(value[0]);
+
+        // Zahl als QString senden
+        emit valueReceived(QString::number(number));
+    }
 }
+
 
 void BleHandler::controllerConnected() {
     qDebug() << "Controller connected!";
@@ -212,15 +215,12 @@ void BleHandler::controllerConnected() {
 
 }
 
-
-// Diese Methode wird aufgerufen, wenn die Verbindung getrennt wurde
 void BleHandler::controllerDisconnected() {
     qDebug() << "BLE-Verbindung wurde getrennt (vermutlich abgebrochen).";
 
     emit disconnected();
 }
 
-// Diese Methode wird aufgerufen, wenn ein Fehler beim Controller auftritt
 void BleHandler::controllerError(QLowEnergyController::Error error) {
     qDebug() << "Controller error:" << error;
 }
@@ -228,16 +228,15 @@ void BleHandler::controllerError(QLowEnergyController::Error error) {
 void BleHandler::onControllerStateChanged(QLowEnergyController::ControllerState newState) {
     if (newState == QLowEnergyController::ConnectedState) {
         qDebug() << "Gerät erfolgreich verbunden!";
-        emit connected();  // Benutzerdefiniertes Signal für erfolgreiche Verbindung
+        emit connected();
     }
     else if (newState == QLowEnergyController::UnconnectedState) {
         qDebug() << "Verbindung verloren!";
-        emit disconnected();  // Benutzerdefiniertes Signal für Trennung
+        emit disconnected();
     }
 }
 
 
-// Diese Methode wird aufgerufen, wenn sich die Werte einer Characteristic ändern
 void BleHandler::characteristicChanged(const QLowEnergyCharacteristic &characteristic, const QByteArray &value) {
     qDebug() << "Characteristic" << characteristic.uuid() << "changed to" << value;
     emit valueReceived(value);
@@ -246,21 +245,46 @@ void BleHandler::characteristicChanged(const QLowEnergyCharacteristic &character
 void BleHandler::sendBool() {
     if (controlChar.isValid()) {
         QByteArray value;
-        value.append('\x01');  // Angenommener Wert für true als Byte
+        value.append('\x01');
         service->writeCharacteristic(controlChar, value);
     } else {
         qDebug() << "Control-Charakteristik nicht gültig!";
     }
 }
 
-void BleHandler::readGroups() {
+void BleHandler::writeGroupName(const QString &groupName) {
     if (!groupChar.isValid()) {
         qDebug() << "Gruppen-Charakteristik nicht gültig!";
         return;
     }
-    service->readCharacteristic(groupChar);
+    if (!service) {
+        qDebug() << "Service nicht gesetzt!";
+        return;
+    }
+
+    QByteArray data = groupName.toUtf8();
+
+    service->writeCharacteristic(groupChar, data);
 }
 
-QStringList BleHandler::groupList() const {
-    return m_groupList;
+void BleHandler::requestGroups() {
+    if (!requestGroupsChar.isValid() || !service) {
+        qDebug() << "Request-Gruppen Charakteristik oder Service nicht gültig!";
+        return;
+    }
+
+    QByteArray requestValue;
+    requestValue.append('\x01');  // 1 als Trigger
+    service->writeCharacteristic(requestGroupsChar, requestValue);
 }
+
+void BleHandler::readGroups() {
+    if (!groupChar.isValid() || !service) {
+        qDebug() << "GroupChar oder Service nicht gültig für Gruppen-Auslesen.";
+        return;
+    }
+    service->readCharacteristic(groupChar);
+    qDebug() << "Gruppen-Lesen initiiert.";
+}
+
+

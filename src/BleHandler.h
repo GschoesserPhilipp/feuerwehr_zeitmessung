@@ -12,18 +12,21 @@
 class BleHandler : public QObject {
     Q_OBJECT
     Q_PROPERTY(QVariant devicesList READ devicesList NOTIFY devicesListChanged)
-    Q_PROPERTY(QStringList groupList READ groupList NOTIFY groupListChanged)
+
 
 public:
     explicit BleHandler(QObject *parent = nullptr);
     Q_INVOKABLE void startScan();
     Q_INVOKABLE void stopScan();
     QVariantList devicesList();
-    QStringList groupList() const;
+
 
     Q_INVOKABLE void connectToDevice(const QString &address);
     Q_INVOKABLE void disconnectFromDevice();
     Q_INVOKABLE void sendBool();
+    Q_INVOKABLE void writeGroupName(const QString &groupName);
+
+    Q_INVOKABLE void requestGroups();
     Q_INVOKABLE void readGroups();
 
 
@@ -35,10 +38,8 @@ signals:
     void connected();
     void disconnected();
     void timeReceived(uint value);
-    void messageReceived(QString value);
+    void groupsReceived(QString value);
     void valueReceived(QString value);
-    void groupListChanged();
-
 
 
 private slots:
@@ -55,8 +56,9 @@ private slots:
     void characteristicChanged(const QLowEnergyCharacteristic &c, const QByteArray &value);
     QLowEnergyController* createControllerForAddress(const QString &address);
     void characteristicUpdated(const QLowEnergyCharacteristic &c, const QByteArray &value);
-    void characteristicRead(const QLowEnergyCharacteristic &c, const QByteArray &value);
     void onControllerStateChanged(QLowEnergyController::ControllerState newState);
+
+
 
 
 private:
@@ -67,7 +69,10 @@ private:
     QLowEnergyCharacteristic controlChar;
     QLowEnergyCharacteristic groupChar;
     QVariantList m_devices;
-    QStringList m_groupList;
+
+    QLowEnergyCharacteristic requestGroupsChar;
+    QLowEnergyCharacteristic sendGroupsChar;
+
 };
 
 #endif // BLUETOOTHHANDLER_H

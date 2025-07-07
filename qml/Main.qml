@@ -1,21 +1,20 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtCore
-import Ble 1.0
+import feuerwehr_zeitmessung 1.0
 import QtQuick.Controls.Material
 
 ApplicationWindow {
     visible: true
-    width: 460 //Screen.width
-    height: 740 //Screen.height
+    width: 460
+    height: 740
     title: qsTr("Bluetooth LE Scanner")
 
     Material.theme: Material.Dark
     Material.accent: Material.LightBlue
 
-    property string globalGroupName: ""
     property int globalElapsedMs: 0
-    property var imageOpacity: 0.2
+    property real imageOpacity: 0.2
     property bool connected: false
 
 
@@ -57,6 +56,11 @@ ApplicationWindow {
         height: parent.height
         currentIndex: tabBar.currentIndex
 
+        onCurrentIndexChanged: {
+               if (currentIndex === 1) { // Index der Counter-Seite
+                   bleHandler.requestGroups()
+               }
+           }
 
         Item {
             width: swipeView.width
@@ -75,8 +79,8 @@ ApplicationWindow {
             Counter {
                 id: counter_rect
                 width: parent.width
-            }
 
+            }
         }
 
         Item {
@@ -101,24 +105,24 @@ ApplicationWindow {
         currentIndex: swipeView.currentIndex
 
         TabButton {
-            icon.source: "images/connect.svg"
+            icon.source: "qrc:/feuerwehr_zeitmessung/images/connect.svg"
             icon.color: "white"
         }
         TabButton {
 
-            icon.source: "images/timer.svg"
-            icon.color: "white"
-        }
-
-        TabButton {
-
-            icon.source: "images/error_list.svg"
+            icon.source: "qrc:/feuerwehr_zeitmessung/images/timer.svg"
             icon.color: "white"
         }
 
         TabButton {
 
-            icon.source: "images/list.svg"
+            icon.source: "qrc:/feuerwehr_zeitmessung/images/error_list.svg"
+            icon.color: "white"
+        }
+
+        TabButton {
+
+            icon.source: "qrc:/feuerwehr_zeitmessung/images/list.svg"
             icon.color: "white"
         }
 

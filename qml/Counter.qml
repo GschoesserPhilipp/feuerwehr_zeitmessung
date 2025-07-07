@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtMultimedia
+import QtQuick.Dialogs
 
 Rectangle {
     id: counter_rect
@@ -9,6 +9,8 @@ Rectangle {
     height: parent.height
     anchors.centerIn: parent
     color: "transparent"
+
+    property var groupList: []
 
     function updateValue(value) {
 
@@ -18,24 +20,90 @@ Rectangle {
         timeDisplay.text = minutes + ":" + (seconds < 10 ? "0" + seconds : seconds) + ":" + (centiseconds < 10 ? "0" + centiseconds : centiseconds);
     }
 
+    Popup {
+        id: addGroupPopup
+        modal: true
+        focus: true
+        x: parent.width / 2 - width / 2
+        y: parent.height / 2 - height / 2
+        width: 300
+        height: 250
+        background: Rectangle {
+            color: "#333"
+            radius: 10
+        }
+
+        Column {
+            anchors.fill: parent
+            anchors.margins: 15
+            spacing: 10
+
+            Text {
+                text: "Neue Gruppe hinzufügen"
+                font.pixelSize: 18
+                color: "white"
+                horizontalAlignment: Text.AlignHCenter
+                anchors.horizontalCenter: parent.horizontalCenter
+            }
+
+            TextField {
+                id: newGroupName
+                placeholderText: "Gruppenname eingeben"
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: parent.width - 20
+            }
+
+            Row {
+                spacing: 10
+                anchors.horizontalCenter: parent.horizontalCenter
+
+                Button {
+                    text: "Abbrechen"
+                    onClicked: {
+                        newGroupName.clear();
+                        addGroupPopup.close()
+                    }
+                }
+
+                Button {
+                    text: "Hinzufügen"
+                    enabled: newGroupName.text.length > 0
+                    onClicked: {
+                        if (groupBox.model.indexOf(newGroupName.text) !== -1) {
+                            messageDialog.title = "Fehler"
+                            messageDialog.text = "Die Gruppe existiert bereits!"
+                            messageDialog.open()
+                        } else {
+                            bleHandler.writeGroupName(newGroupName.text)
+
+                            messageDialog.title = "Meldung"
+                            messageDialog.text = "Gruppe hinzugefügt: " + newGroupName.text
+                            messageDialog.open()
+
+                            newGroupName.clear()
+                            addGroupPopup.close()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    MessageDialog {
+        id: messageDialog
+        title: ""
+        text: ""
+
+    }
+
 
     Image {
         id: fireImage
-        source: "images/fire.png"
+        source: "qrc:/feuerwehr_zeitmessung/images/fire.png"
         anchors.bottomMargin: 200
         anchors.centerIn: parent
         anchors.fill: parent
         opacity: imageOpacity
-    }
-
-    SoundEffect {
-        id: startSound
-        source: Qt.resolvedUrl("sound/angriffsbefehl.wav")
-        onPlayingChanged: {
-            if (!playing) {
-                bleHandler.sendBool();
-            }
-        }
     }
 
 
@@ -49,7 +117,6 @@ Rectangle {
         anchors.bottomMargin: 22
         anchors.rightMargin: 10
         anchors.leftMargin: 10
-
 
 
         Rectangle {
@@ -85,7 +152,7 @@ Rectangle {
                     anchors.horizontalCenterOffset: 0
                     color: "#ffffff"
                     text: "00:00:00"
-                    anchors.verticalCenter: parent.verticalCenter  // Standardtext
+                    anchors.verticalCenter: parent.verticalCenter
                 }
             }
         }
@@ -103,7 +170,15 @@ Rectangle {
                 id:groupBox
                 implicitHeight: 50
                 Layout.fillWidth: true
-                displayText: "Gruppe auswählen"
+                displayText: currentIndex === -1 ? "Gruppe wählen" : currentText
+                model: groupList
+                onActivated: function(index) {
+                    groupBox.currentIndex = index;
+                }
+                onPressedChanged: if (pressed) {
+
+                                      bleHandler.requestGroups()
+                                  }
             }
 
             Rectangle {
@@ -114,7 +189,7 @@ Rectangle {
                 color: "transparent"
                 border.color: "white"
                 Image {
-                    source: "images/add_group.svg"
+                    source: "qrc:/feuerwehr_zeitmessung/images/add_group.svg"
                     height: 30
                     width: 30
                     anchors.centerIn: parent
@@ -123,7 +198,7 @@ Rectangle {
                 MouseArea {
                     anchors.fill: parent
                     onClicked: {
-                        console.log("add new group")
+                        addGroupPopup.open()
                     }
                 }
             }
@@ -134,15 +209,28 @@ Rectangle {
             text: qsTr("Start")
             Layout.fillWidth: true
             implicitHeight: 100
+
             onClicked: {
-                if (startSound.status === SoundEffect.Ready) {
-                    startSound.play();
-                } else {
-                    console.warn("Sound not ready");
-                }
+                bleHandler.sendBool();
+
+            }
+        }
+    }
+
+    Connections {
+        target: bleHandler
+        onGroupsReceived: function(value) {
+            console.log("Gruppen empfangen:", value)
+
+            var parsed = JSON.parse(value);
+            if (parsed && parsed.groups) {
+                groupList = parsed.groups;
+                console.log("Parsed Gruppen:", groupList);
+            } else {
+                console.log("Ungültiges JSON oder kein groups-Feld");
+                groupList = [];
             }
         }
     }
 
 }
-
