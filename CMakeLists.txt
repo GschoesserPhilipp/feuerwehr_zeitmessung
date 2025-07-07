@@ -2,57 +2,58 @@ cmake_minimum_required(VERSION 3.16)
 
 project(feuerwehr_zeitmessung VERSION 0.1 LANGUAGES CXX)
 
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Quick Core Bluetooth Sql)
+find_package(Qt6 COMPONENTS Quick Core Bluetooth Multimedia REQUIRED)
 
-qt_standard_project_setup(REQUIRES 6.8)
-
-# /src
-file(GLOB SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.cpp" "src/*.h")
-
-# /qml
-file(GLOB QML_FILES RELATIVE ${CMAKE_SOURCE_DIR} "qml/*.qml")
-
-# resources
-file(GLOB IMAGE_RESOURCES RELATIVE ${CMAKE_SOURCE_DIR} "images/*")
-file(GLOB SOUND_RESOURCES RELATIVE ${CMAKE_SOURCE_DIR} "sound/*")
-
-foreach(qml_file IN LISTS QML_FILES)
-    set_property(SOURCE "${qml_file}" PROPERTY QT_RESOURCE_ALIAS "${qml_file}")
-endforeach()
-
-qt_add_executable(feuerwehr_zeitmessung
+# Executable
+qt_add_executable(feuerwehr_zeitmessung_app
     src/main.cpp
-    ${SOURCES}
+    src/BleHandler.cpp
+    src/BleHandler.h
 )
 
-qt_add_qml_module(feuerwehr_zeitmessung
+qt_add_qml_module(feuerwehr_zeitmessung_app
     URI feuerwehr_zeitmessung
     VERSION 1.0
 
+    # Explicitly declare Main.qml as the main file
+    NO_PLUGIN
+    NO_GENERATE_PLUGIN_SOURCE
 
-    SOURCES ${SOURCES}
-
-    QML_FILES ${QML_FILES}
+    QML_FILES
+        qml/Main.qml  # This should be your root QML component
+        qml/Counter.qml
+        qml/DeviceList.qml
+        qml/ErrorList.qml
+        qml/History.qml
 
     RESOURCES
-        ${IMAGE_RESOURCES}
-        ${SOUND_RESOURCES}
+        images/add_group.svg
+        images/connect.svg
+        images/error_list.svg
+        images/fire.png
+        images/list.svg
+        images/settings.svg
+        images/timer.svg
+        sound/angriffsbefehl.wav
+        sound/angriffsbefehl.mp3
 )
 
-set_property(TARGET feuerwehr_zeitmessung PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR ${CMAKE_SOURCE_DIR}/android)
-
-target_link_libraries(feuerwehr_zeitmessung
+target_link_libraries(feuerwehr_zeitmessung_app
     PRIVATE
     Qt6::Quick
     Qt6::Core
     Qt6::Bluetooth
-    Qt6::Sql
+    Qt6::Multimedia
 )
 
-include(GNUInstallDirs)
-install(TARGETS feuerwehr_zeitmessung
+# Android-specific setup
+set_property(TARGET feuerwehr_zeitmessung_app PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR ${CMAKE_SOURCE_DIR}/android)
+
+install(TARGETS feuerwehr_zeitmessung_app
     BUNDLE DESTINATION .
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
